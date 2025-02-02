@@ -1,5 +1,7 @@
 <?php
 header('Content-Type: application/json');
+header('Access-Control-Allow-Methods: GET, POST');
+header('Access-Control-Allow-Headers: Content-Type');
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 
@@ -15,55 +17,83 @@ try {
         throw new Exception("Connection failed: " . $conn->connect_error);
     }
 
-    // Handle file upload and form submission
-    if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Handle POST request (form submission)
+    if ($_SERVER["REQUEST_METHOD"] === "POST") {
+        // Check if the required fields exist
         if (!isset($_POST['id']) || !isset($_POST['name']) || !isset($_FILES['photo'])) {
             throw new Exception("Missing required fields");
         }
 
-        $id = $_POST['id'];
-        $name = $_POST['name'];
-        $photo = $_FILES['photo']['name'];
+        // Validate and sanitize inputs
+        $id = filter_var($_POST['id'], FILTER_VALIDATE_INT);
+        if ($id === false) {
+            throw new Exception("Invalid ID format");
+        }
+
+        $name = trim($_POST['name']);
+        if (empty($name)) {
+            throw new Exception("Name cannot be empty");
+        }
+
+        // Handle file upload
+        $photo = $_FILES['photo'];
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
         
+        if (!in_array($photo['type'], $allowedTypes)) {
+            throw new Exception("Invalid file type. Only JPG, PNG and GIF are allowed.");
+        }
+
         $target_dir = "uploads/";
         if (!file_exists($target_dir)) {
             mkdir($target_dir, 0777, true);
         }
-        
-        $target_file = $target_dir . basename($_FILES["photo"]["name"]);
 
-        if (move_uploaded_file($_FILES["photo"]["tmp_name"], $target_file)) {
-            $sql = "INSERT INTO wilaya (id, name, photo) VALUES (?, ?, ?)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("iss", $id, $name, $photo);
+        // Generate unique filename
+        $file_extension = pathinfo($photo['name'], PATHINFO_EXTENSION);
+        $unique_filename = uniqid() . '.' . $file_extension;
+        $target_file = $target_dir . $unique_filename;
+
+        if (move_uploaded_file($photo['tmp_name'], $target_file)) {
+            // Use prepared statement to prevent SQL injection
+            $stmt = $conn->prepare("INSERT INTO wilaya (id, name, photo) VALUES (?, ?, ?)");
+            $stmt->bind_param("iss", $id, $name, $unique_filename);
             
             if ($stmt->execute()) {
-                echo json_encode(["success" => "New wilaya added successfully!"]);
+                echo json_encode([
+                    "success" => "New wilaya added successfully!",
+                    "data" => [
+                        "id" => $id,
+                        "name" => $name,
+                        "photo" => $unique_filename
+                    ]
+                ]);
             } else {
                 throw new Exception("Error inserting data: " . $stmt->error);
             }
+            $stmt->close();
         } else {
-            throw new Exception("Sorry, there was an error uploading your file.");
+            throw new Exception("Failed to upload file");
         }
-        exit;
     }
-
-    // Handle GET request to fetch wilayas
-    if ($_SERVER["REQUEST_METHOD"] == "GET") {
-        $wilayas_sql = "SELECT id, name, photo FROM wilaya ORDER BY id";
-        $wilayas_result = $conn->query($wilayas_sql);
-        
-        if (!$wilayas_result) {
-            throw new Exception("Error fetching data: " . $conn->error);
-        }
+    // Handle GET request (fetch wilayas)
+    else if ($_SERVER["REQUEST_METHOD"] === "GET") {
+        $stmt = $conn->prepare("SELECT id, name, photo FROM wilaya ORDER BY id");
+        $stmt->execute();
+        $result = $stmt->get_result();
         
         $wilayas = [];
-        while($row = $wilayas_result->fetch_assoc()) {
-            $wilayas[] = $row;
+        while ($row = $result->fetch_assoc()) {
+            $wilayas[] = [
+                'id' => $row['id'],
+                'name' => $row['name'],
+                'photo' => $row['photo']
+            ];
         }
         
         echo json_encode($wilayas);
-        exit;
+        $stmt->close();
+    } else {
+        throw new Exception("Method not allowed");
     }
 
 } catch (Exception $e) {
