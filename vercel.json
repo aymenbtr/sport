@@ -1,0 +1,20 @@
+{
+    "version": 2,
+    "builds": [
+      {
+        "src": "api/**/*.php",
+        "use": "@vercel-php"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/api/(.*)",
+        "dest": "/api/$1",
+        "methods": ["GET", "POST", "PUT", "DELETE"],
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      }
+    ]
+  }
+  
