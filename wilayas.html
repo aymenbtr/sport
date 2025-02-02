@@ -325,36 +325,46 @@
         }
 
         // Handle form submission
-        document.getElementById('wilayaForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            
-            try {
-                const response = await fetch('database2.php', {
-                    method: 'POST',
-                    body: formData
-                });
+document.getElementById('wilayaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    try {
+        const formData = new FormData(e.target);
+        
+        // Show loading state
+        const submitButton = e.target.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.textContent;
+        submitButton.textContent = 'Submitting...';
+        submitButton.disabled = true;
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const result = await response.json();
-                
-                if (result.error) {
-                    showMessage(result.error, true);
-                } else if (result.success) {
-                    showMessage(result.success);
-                    e.target.reset();
-                    await loadWilayas(); // Reload the wilayas after successful addition
-                }
-            } catch (error) {
-                console.error('Error details:', error);
-                showMessage('Error submitting form: ' + error.message, true);
-            }
+        const response = await fetch('database2.php', {
+            method: 'POST',
+            body: formData
         });
 
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.error) {
+            showMessage(result.error, true);
+        } else if (result.success) {
+            showMessage(result.success);
+            e.target.reset();
+            await loadWilayas(); // Reload the wilayas after successful addition
+        }
+    } catch (error) {
+        console.error('Error details:', error);
+        showMessage('Error submitting form: ' + error.message, true);
+    } finally {
+        // Restore button state
+        const submitButton = e.target.querySelector('button[type="submit"]');
+        submitButton.textContent = 'Add Wilaya';
+        submitButton.disabled = false;
+    }
+});
         // Load wilayas when the page loads
         document.addEventListener('DOMContentLoaded', loadWilayas);
     </script>
