@@ -258,75 +258,105 @@
         </div>
     
         <script>
-            // Function to show message
-            function showMessage(message, isError = false) {
-                const messageContainer = document.getElementById('messageContainer');
-                messageContainer.innerHTML = `
-                    <div class="message ${isError ? 'error' : 'success'}">
-                        ${message}
-                    </div>
-                `;
-                setTimeout(() => {
-                    messageContainer.innerHTML = '';
-                }, 5000);
-            }
-    
-            // Function to load wilayas
-            async function loadWilayas() {
-                try {
-                    const response = await fetch('database2.php');
-                    const wilayas = await response.json();
-                    const wilayasGrid = document.getElementById('wilayasGrid');
-                    
-                    if (wilayas.length === 0) {
-                        wilayasGrid.innerHTML = '<p>No wilayas found.</p>';
-                        return;
-                    }
-    
-                    wilayasGrid.innerHTML = wilayas.map(wilaya => `
-                        <div class="wilaya-card">
-                            <img src="uploads/${encodeURIComponent(wilaya.photo)}" 
-                                 alt="${encodeURIComponent(wilaya.name)}" 
-                                 class="wilaya-image">
-                            <div class="wilaya-info">
-                                <h3>${wilaya.name}</h3>
-                                <div class="wilaya-id">ID: ${wilaya.id}</div>
-                            </div>
+        // Function to show message
+        function showMessage(message, isError = false) {
+            const messageContainer = document.getElementById('messageContainer');
+            messageContainer.innerHTML = `
+                <div class="message ${isError ? 'error' : 'success'}">
+                    ${message}
+                </div>
+            `;
+            setTimeout(() => {
+                messageContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        // Function to load wilayas
+        async function loadWilayas() {
+            try {
+                const response = await fetch('database2.php');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server did not return JSON! Got: ' + contentType);
+                }
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                const wilayasGrid = document.getElementById('wilayasGrid');
+                
+                if (!Array.isArray(data) || data.length === 0) {
+                    wilayasGrid.innerHTML = '<p>No wilayas found.</p>';
+                    return;
+                }
+
+                wilayasGrid.innerHTML = data.map(wilaya => `
+                    <div class="wilaya-card">
+                        <img src="uploads/${encodeURIComponent(wilaya.photo)}" 
+                             alt="${encodeURIComponent(wilaya.name)}" 
+                             class="wilaya-image"
+                             onerror="this.src='placeholder.jpg'">
+                        <div class="wilaya-info">
+                            <h3>${escapeHtml(wilaya.name)}</h3>
+                            <div class="wilaya-id">ID: ${escapeHtml(wilaya.id)}</div>
                         </div>
-                    `).join('');
-                } catch (error) {
-                    showMessage('Error loading wilayas: ' + error.message, true);
-                }
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error details:', error);
+                showMessage('Error loading wilayas: ' + error.message, true);
             }
-    
-            // Handle form submission
-            document.getElementById('wilayaForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const formData = new FormData(e.target);
-                
-                try {
-                    const response = await fetch('database2.php', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    const result = await response.json();
-                    
-                    if (result.error) {
-                        showMessage(result.error, true);
-                    } else if (result.success) {
-                        showMessage(result.success);
-                        e.target.reset();
-                        loadWilayas(); // Reload the wilayas after successful addition
-                    }
-                } catch (error) {
-                    showMessage('Error submitting form: ' + error.message, true);
+        }
+
+        // Function to escape HTML to prevent XSS
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Handle form submission
+        document.getElementById('wilayaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch('database2.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-            });
-    
-            // Load wilayas when the page loads
-            document.addEventListener('DOMContentLoaded', loadWilayas);
-        </script>
+
+                const result = await response.json();
+                
+                if (result.error) {
+                    showMessage(result.error, true);
+                } else if (result.success) {
+                    showMessage(result.success);
+                    e.target.reset();
+                    await loadWilayas(); // Reload the wilayas after successful addition
+                }
+            } catch (error) {
+                console.error('Error details:', error);
+                showMessage('Error submitting form: ' + error.message, true);
+            }
+        });
+
+        // Load wilayas when the page loads
+        document.addEventListener('DOMContentLoaded', loadWilayas);
+    </script>
     </body>
     </html>
